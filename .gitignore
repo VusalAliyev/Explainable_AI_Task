@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual Environment
+venv/
+env/
+
+# VSCode
+.vscode/
+
+# MacOS
+.DS_Store
+
+# Jupyter Notebooks (eğer varsa)
+.ipynb_checkpoints/
+
+# Output, logs ve görseller
+*.png
+*.jpg
+*.jpeg
+*.log
+
+# PyCharm
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# Model checkpoints or outputs
+*.pth
+*.pt
+checkpoints/
+outputs/
+runs/
