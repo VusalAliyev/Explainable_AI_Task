@@ -10,7 +10,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from pycocotools import mask as maskUtils
 
-# Simple U-Net inspired architecture
+# --- Model ---
 class MiniUNet(nn.Module):
     def __init__(self):
         super().__init__()
@@ -31,7 +31,7 @@ class MiniUNet(nn.Module):
         x = self.decoder(x)
         return x
 
-# Dice Loss function
+# --- Dice Loss ---
 def dice_loss(pred, target, smooth=1e-6):
     pred = torch.sigmoid(pred)
     pred = pred.view(-1)
@@ -40,7 +40,7 @@ def dice_loss(pred, target, smooth=1e-6):
     dice = (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
     return 1 - dice, dice.item()
 
-# Dataset class
+# --- Dataset ---
 class PlaqueDataset(Dataset):
     def __init__(self, image_dir, annotation_file, transform=None):
         self.image_dir = image_dir
@@ -71,13 +71,16 @@ class PlaqueDataset(Dataset):
             raise FileNotFoundError(f"Image not found at path: {img_path}")
 
         image = Image.open(img_path).convert("RGB")
-        original_size = image.size  # (width, height)
+        original_size = image.size
         image = image.resize((512, 512))
         image = np.array(image).astype(np.float32) / 255.0
 
-        anns = self.img_id_to_annotations.get(img_id, [])
-        mask = np.zeros((original_size[1], original_size[0]), dtype=np.uint8)
+        anns = [
+            ann for ann in self.img_id_to_annotations.get(img_id, [])
+            if ann['category_id'] in [2, 3, 4]  # ONLY PLAQUES
+        ]
 
+        mask = np.zeros((original_size[1], original_size[0]), dtype=np.uint8)
         for ann in anns:
             rle = maskUtils.frPyObjects(ann['segmentation'], original_size[1], original_size[0])
             m = maskUtils.decode(rle)
@@ -94,13 +97,10 @@ class PlaqueDataset(Dataset):
 
         return image, mask
 
-# Hyperparameters and setup
-subset_name = "Subset_II"  # <<< CHANGED HERE
-
+# --- Training ---
+subset_name = "Subset_II"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-transform = T.Compose([
-    T.ToTensor(),
-])
+transform = T.Compose([T.ToTensor()])
 
 dataset = PlaqueDataset(
     image_dir=f"data/{subset_name}",
@@ -113,14 +113,14 @@ model = MiniUNet().to(device)
 bce_loss_fn = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-# Training loop
 loss_values = []
 dice_scores = []
+dice_losses = []
 
 for epoch in range(10):
     model.train()
-    total_loss = 0
-    total_dice_score = 0
+    total_loss, total_dice_score, total_dice_loss = 0, 0, 0
+
     for images, masks in tqdm(dataloader):
         images, masks = images.to(device), masks.to(device)
         outputs = model(images)
@@ -135,23 +135,49 @@ for epoch in range(10):
 
         total_loss += loss.item()
         total_dice_score += dsc_score
+        total_dice_loss += dsc_loss.item()
 
     avg_loss = total_loss / len(dataloader)
     avg_dice = total_dice_score / len(dataloader)
+    avg_dice_loss = total_dice_loss / len(dataloader)
+
     loss_values.append(avg_loss)
     dice_scores.append(avg_dice)
+    dice_losses.append(avg_dice_loss)
 
-    print(f"Epoch {epoch+1} - Loss: {avg_loss:.4f} - Dice Score: {avg_dice:.4f}")
+    print(f"Epoch {epoch+1} - Loss: {avg_loss:.4f} - Dice Score: {avg_dice:.4f} - Dice Loss: {avg_dice_loss:.4f}")
 
-# Plot Loss and Dice Score
+# --- Save Model ---
+torch.save(model.state_dict(), "trained_cotr_subsetII.pth")
+
+# --- Plot Loss Curve ---
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+ax1.plot(range(1, 11), loss_values, label='Total Loss')
+ax1.set_title("Total Loss")
+ax1.set_xlabel("Epoch")
+ax1.set_ylabel("Loss")
+ax1.grid(True)
+ax1.legend()
+
+ax2.plot(range(1, 11), dice_losses, label='Dice Loss', color='green')
+ax2.set_title("Dice Loss")
+ax2.set_xlabel("Epoch")
+ax2.set_ylabel("Loss")
+ax2.grid(True)
+ax2.legend()
+
+plt.tight_layout()
+plt.savefig("cotr_subsetII_loss_curves.png")
+plt.show()
+
+# --- Plot Dice Score ---
 plt.figure(figsize=(6, 4))
-plt.plot(range(1, 11), loss_values, marker='o', color='orange', label='Training Loss')
 plt.plot(range(1, 11), dice_scores, marker='s', color='blue', label='Dice Score')
 plt.xlabel("Epoch")
-plt.ylabel("Metric")
-plt.title(f"Training Loss and Dice Score (CoTr - {subset_name})")
+plt.ylabel("Dice Score")
+plt.title("Dice Score (CoTr - Subset II)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig(f"cotr_{subset_name.lower()}_metrics.png")
+plt.savefig("cotr_subsetII_dice_score.png")
 plt.show()

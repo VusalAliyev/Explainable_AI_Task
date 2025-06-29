@@ -75,15 +75,19 @@ class PlaqueDataset(Dataset):
         image = image.resize((512, 512))
         image = np.array(image).astype(np.float32) / 255.0
 
-        anns = self.img_id_to_annotations.get(img_id, [])
+        anns = [
+                    ann for ann in self.img_id_to_annotations.get(img_id, [])
+                    if ann['category_id'] in [2, 3, 4]
+                ]
         mask = np.zeros((original_size[1], original_size[0]), dtype=np.uint8)
 
         for ann in anns:
-            rle = maskUtils.frPyObjects(ann['segmentation'], original_size[1], original_size[0])
-            m = maskUtils.decode(rle)
-            if len(m.shape) == 3:
-                m = np.any(m, axis=2)
-            mask = np.maximum(mask, m)
+            if ann['category_id'] in [2, 3, 4]:  # Sadece plaque sınıfları
+                rle = maskUtils.frPyObjects(ann['segmentation'], original_size[1], original_size[0])
+                m = maskUtils.decode(rle)
+                if len(m.shape) == 3:
+                    m = np.any(m, axis=2)
+                mask = np.maximum(mask, m)
 
         mask = Image.fromarray(mask.astype(np.uint8)).resize((512, 512))
         mask = np.array(mask).astype(np.float32)
@@ -114,11 +118,13 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 # Training loop
 loss_values = []
 dice_scores = []
+dice_losses = []
 
 for epoch in range(10):
     model.train()
     total_loss = 0
     total_dice_score = 0
+    total_dice_loss = 0
     for images, masks in tqdm(dataloader):
         images, masks = images.to(device), masks.to(device)
         outputs = model(images)
@@ -133,23 +139,48 @@ for epoch in range(10):
 
         total_loss += loss.item()
         total_dice_score += dsc_score
+        total_dice_loss += dsc_loss.item()
 
     avg_loss = total_loss / len(dataloader)
     avg_dice = total_dice_score / len(dataloader)
+    avg_dice_loss = total_dice_loss / len(dataloader)
     loss_values.append(avg_loss)
     dice_scores.append(avg_dice)
+    dice_losses.append(avg_dice_loss)
 
-    print(f"Epoch {epoch+1} - Loss: {avg_loss:.4f} - Dice Score: {avg_dice:.4f}")
+    print(f"Epoch {epoch+1} - Loss: {avg_loss:.4f} - Dice Score: {avg_dice:.4f} - Dice Loss: {avg_dice_loss:.4f}")
 
-# Plot Loss and Dice Score
+# Save model
+torch.save(model.state_dict(), "trained_cotr_subsetI.pth")
+
+# Plot Total Loss and Dice Loss
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+ax1.plot(range(1, 11), loss_values, label='Total Loss')
+ax1.set_title("Total Loss")
+ax1.set_xlabel("Epoch")
+ax1.set_ylabel("Loss")
+ax1.grid(True)
+ax1.legend()
+
+ax2.plot(range(1, 11), dice_losses, label='Dice Loss', color='green')
+ax2.set_title("Dice Loss")
+ax2.set_xlabel("Epoch")
+ax2.set_ylabel("Loss")
+ax2.grid(True)
+ax2.legend()
+
+plt.tight_layout()
+plt.savefig("cotr_subsetI_loss_curves.png")
+plt.show()
+
+# Plot Dice Score separately
 plt.figure(figsize=(6, 4))
-plt.plot(range(1, 11), loss_values, marker='o', color='orange', label='Training Loss')
 plt.plot(range(1, 11), dice_scores, marker='s', color='blue', label='Dice Score')
 plt.xlabel("Epoch")
-plt.ylabel("Metric")
-plt.title("Training Loss and Dice Score (CoTr - Subset I)")
+plt.ylabel("Dice Score")
+plt.title("Dice Score (CoTr - Subset I)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig("cotr_subsetI_metrics.png")
+plt.savefig("cotr_subsetI_dice_score.png")
 plt.show()
