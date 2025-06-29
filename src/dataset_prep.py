@@ -1,5 +1,4 @@
 # src/dataset_prep.py
-
 import os
 import json
 from tqdm import tqdm
@@ -48,3 +47,9 @@ def rename_images_and_update_json(base_dir, subset):
                 json.dump(coco, f)
 
             print(f"[✔] Updated {json_file} in {vessel_path}")
+
+
+if __name__ == "__main__":
+    base_dir = "data"
+    for subset in ["Subset_I", "Subset_II"]:
+        rename_images_and_update_json(base_dir, subset)
