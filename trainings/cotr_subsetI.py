@@ -105,7 +105,7 @@ transform = T.Compose([
 ])
 
 dataset = PlaqueDataset(
-    image_dir="data/Subset_I",
+    image_dir="data/Subset_I_flattened",
     annotation_file="annotations/Subset_I.json",
     transform=transform
 )

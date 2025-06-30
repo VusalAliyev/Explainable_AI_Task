@@ -15,14 +15,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Dönüşümler ve veri seti
 transform = T.Compose([T.ToTensor()])
 dataset = PlaqueDataset(
-    image_dir="data/Subset_I",
+    image_dir="data/Subset_I_flattened",
     annotation_file="annotations/Subset_I.json",
     transform=transform
 )
 
 # Model yükleniyor
 model = MiniUNet().to(device)
-model.load_state_dict(torch.load("trained_cotr_subsetI.pth", map_location=device))
+model.load_state_dict(torch.load("checkpoints/trained_cotr_subsetI.pth", map_location=device))
 model.eval()
 
 # Görselleştirilecek örnek indeksler

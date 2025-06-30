@@ -14,8 +14,9 @@ def merge_subset_jsons(subset_path, output_path):
 
     image_id_map = {}
 
-    all_jsons = glob.glob(os.path.join(subset_path, "*", "*", "labels_*.json"))
-    print(f"[🔍] Found {len(all_jsons)} JSON files in {subset_path}")
+    # _updated.json dosyalarını topla
+    all_jsons = glob.glob(os.path.join(subset_path, "*", "*", "*_updated.json"))
+    print(f"[🔍] Found {len(all_jsons)} updated JSON files in {subset_path}")
 
     for json_file in tqdm(all_jsons, desc=f"Merging {subset_path}"):
         with open(json_file, 'r') as f:
@@ -24,19 +25,13 @@ def merge_subset_jsons(subset_path, output_path):
         if not merged["categories"]:
             merged["categories"] = data.get("categories", [])
 
-        subset_name = os.path.basename(subset_path)
-        patient_id = json_file.split(os.sep)[-3]
-        vessel = json_file.split(os.sep)[-2]
-
         for img in data["images"]:
             old_id = img["id"]
             original_name = img["file_name"]
 
-            new_name = f"{subset_name}_{patient_id}_{vessel}_{original_name}"
-            relative_path = os.path.join(patient_id, vessel, new_name).replace("\\", "/")
-
+            # Artık sadece filename olacak (alt klasör yok)
             new_img = img.copy()
-            new_img["file_name"] = relative_path
+            new_img["file_name"] = os.path.basename(original_name)
             new_img["id"] = image_id_counter
 
             image_id_map[old_id] = image_id_counter
@@ -53,7 +48,6 @@ def merge_subset_jsons(subset_path, output_path):
     with open(output_path, 'w') as f:
         json.dump(merged, f, indent=2)
     print(f"[✔] Merged JSON saved to {output_path}")
-
 
 def main():
     os.makedirs("annotations", exist_ok=True)
@@ -97,7 +91,6 @@ def main():
     with open("annotations/Combined.json", "w") as f:
         json.dump(combined, f, indent=2)
     print("[✔] Combined JSON saved to annotations/Combined.json")
-
 
 if __name__ == "__main__":
     main()
